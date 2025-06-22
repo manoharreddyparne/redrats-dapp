@@ -28,6 +28,11 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+import dj_database_url
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 # Application definition
 
 INSTALLED_APPS = [
@@ -37,8 +42,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-]
 
+]
+EXTERNAL_APPS = [
+    'wallet',
+    'users',
+    'drive',
+    #thrid party
+    'rest_framework',
+    'corsheaders',
+]
+INSTALLED_APPS += EXTERNAL_APPS
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -68,16 +82,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'redrats_backend.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(default=os.getenv("DATABASE_URL"))
 }
+# ✅ SESSION SETTINGS (important for local OAuth flow)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_SECURE = False  # ❗ Must be False if testing on HTTP
+CSRF_COOKIE_SECURE = False    # ❗ Must be False if testing on HTTP
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/drive/oauth2callback/")
+
 
 
 # Password validation
