@@ -1,2 +1,32 @@
-"env/" 
-".env" 
+# ==========================================
+# General Python & Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+*.pot
+*.pyc
+
+# Env files
+.env
+backend/.env
+env/
+backend/env/
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node modules (if any)
+node_modules/
+
+# Static & media (if collected/generated)
+staticfiles/
+media/
+uploads/
+
+# Git
+*.orig
+*.swp
