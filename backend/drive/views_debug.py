@@ -1,12 +1,13 @@
+# drive/views_debug.py
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.test import RequestFactory
+from django.http import JsonResponse
 from wallet.crypto import generate_mnemonic, derive_solana_keypair, encrypt_mnemonic, decrypt_mnemonic
 from wallet.models import Wallet
 from users.models import GoogleUser
-from drive.views import download_wallet_backup
+from drive.views import download_wallet_backup, IsAuthenticatedWalletOwner
 from drive.utils import upload_encrypted_wallet_to_drive
-from django.http import JsonResponse
 import base64
 import os
 import json
@@ -15,7 +16,9 @@ import json
 def debug_wallet_view(request):
     context = {}
 
+    # -------------------------
     # 1. Create Wallet
+    # -------------------------
     if request.method == 'POST' and request.POST.get('action') == 'create_wallet':
         wallet_name = request.POST.get('wallet_name')
         mnemonic = generate_mnemonic()
@@ -54,14 +57,16 @@ def debug_wallet_view(request):
             "message": "Wallet created successfully. Backup not yet configured."
         }
 
+    # -------------------------
     # 2. Backup Wallet to Google Drive
+    # -------------------------
     elif request.method == 'POST' and request.POST.get('action') == 'backup_wallet':
         session_data = request.session.get('wallet_access')
         password = request.POST.get('password')
         password_hint = request.POST.get('password_hint', '')
 
         if not session_data or not session_data.get('public_key') or not session_data.get('temporary_password'):
-            context["backup_message"] = {"error": "Temporary password missing from session. Please recreate wallet or reauthenticate."}
+            context["backup_message"] = {"error": "Temporary password missing from session. Please recreate wallet."}
         else:
             wallet = Wallet.objects.filter(public_key=session_data['public_key']).first()
             if not wallet:
@@ -76,7 +81,8 @@ def debug_wallet_view(request):
                     }
 
                     request.META['HTTP_X_WALLET_KEY'] = session_data['public_key']
-                    upload_result = upload_encrypted_wallet_to_drive(request, encrypted_data)
+                    # Use secure upload function
+                    upload_result = upload_encrypted_wallet_to_drive(request, encrypted_data, wallet_name=wallet.wallet_name, password_hint=password_hint)
 
                     if isinstance(upload_result, JsonResponse):
                         result_data = json.loads(upload_result.content)
@@ -97,10 +103,13 @@ def debug_wallet_view(request):
                 except Exception as e:
                     context["backup_message"] = {"error": str(e)}
 
-    # 3. Restore Wallet
+    # -------------------------
+    # 3. Restore Wallet from Google Drive
+    # -------------------------
     elif request.method == 'POST' and request.POST.get('action') == 'restore_wallet':
         password = request.POST.get("restore_password")
         session_data = request.session.get("wallet_access")
+
         if not password or not session_data:
             context["restored_wallet"] = {"error": "Password or wallet session missing."}
         else:
@@ -113,43 +122,46 @@ def debug_wallet_view(request):
                     fake_post = RequestFactory().post("/api/drive/download/", data={})
                     fake_post.session = request.session
                     fake_post.META['HTTP_X_WALLET_KEY'] = public_key
-                    from drive.views import download_wallet_backup
-                    download_response = download_wallet_backup(fake_post)
+
+                    @IsAuthenticatedWalletOwner
+                    def secure_download(request):
+                        return download_wallet_backup(request)
+
+                    download_response = secure_download(fake_post)
 
                     if download_response.status_code != 200:
                         context["restored_wallet"] = {"error": "Failed to download wallet backup"}
                     else:
-                        # Step 2: Call restore_wallet_from_drive view with downloaded data
                         encrypted_data = json.loads(download_response.content).get("encrypted_wallet_data")
                         if not encrypted_data:
                             context["restored_wallet"] = {"error": "Invalid encrypted data from Drive"}
 
-                        restore_request = RequestFactory().post(
-                            "/api/wallets/restore/",
-                            data=json.dumps({
-                                "encrypted_wallet_data": encrypted_data,
-                                "password": password
-                            }), 
-                            content_type="application/json"
-                        )
-                        restore_request.session = request.session
+                        # Step 2: Restore wallet locally
+                        wallet = Wallet.objects.filter(public_key=public_key).first()
+                        decrypted_mnemonic = decrypt_mnemonic(encrypted_data["ciphertext"], password, encrypted_data["salt"])
+                        new_encrypted = encrypt_mnemonic(decrypted_mnemonic, password)
 
-                        from wallet.views import restore_wallet_from_drive
-                        restore_response = restore_wallet_from_drive(restore_request)
+                        wallet.encrypted_mnemonic = new_encrypted["ciphertext"]
+                        wallet.encryption_salt = new_encrypted["salt"]
+                        wallet.save()
 
-                        if restore_response.status_code == 200:
-                            context["restored_wallet"] = json.loads(restore_response.content)
-                        else:
-                            context["restored_wallet"] = {"error": json.loads(restore_response.content).get("error", "Unknown error")}
-
+                        context["restored_wallet"] = {
+                            "message": "Wallet restored successfully",
+                            "public_key": wallet.public_key,
+                            "wallet_name": wallet.wallet_name
+                        }
                 except Exception as e:
                     context["restored_wallet"] = {"error": str(e)}
 
+    # -------------------------
     # 4. Session Info
+    # -------------------------
     elif request.method == 'POST' and request.POST.get('action') == 'session_info':
         context["session_data"] = json.dumps(dict(request.session), indent=2, default=str)
 
+    # -------------------------
     # 5. Logout
+    # -------------------------
     elif request.method == 'POST' and request.POST.get('action') == 'logout':
         request.session.flush()
         context["logout_msg"] = "Session cleared."
