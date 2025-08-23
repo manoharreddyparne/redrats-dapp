@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('wallet.urls')),
     path('api/drive/', include('drive.urls')),
+    path('api/users/', include('users.urls')),
 ]

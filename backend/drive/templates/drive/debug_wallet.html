@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RedRats Wallet Debug</title>
+</head>
+<body>
+    <h1>RedRats DApp Wallet Debug Interface</h1>
+
+    <!-- Wallet Creation -->
+    <h2>1. Create Wallet</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_wallet">
+        Wallet Name: <input type="text" name="wallet_name" required>
+        <button type="submit">Create Wallet</button>
+    </form>
+    {% if wallet %}
+        <h3>✅ Wallet Created:</h3>
+        <ul>
+            <li><strong>Public Key:</strong> {{ wallet.wallet.public_key }}</li>
+            <li><strong>Encrypted Mnemonic:</strong> {{ wallet.wallet.encrypted_mnemonic }}</li>
+            <li><strong>Encryption Salt:</strong> {{ wallet.wallet.encryption_salt }}</li>
+            <li><strong>Wallet Name:</strong> {{ wallet.wallet.wallet_name }}</li>
+            <li><strong>Backup File ID:</strong> {{ wallet.wallet.backup_drive_file_id }}</li>
+            <li><strong>Password Hint:</strong> {{ wallet.wallet.password_hint }}</li>
+            <li><strong>Created At:</strong> {{ wallet.wallet.created_at }}</li>
+            <li><strong>User ID:</strong> {{ wallet.wallet.user }}</li>
+            <li><strong>Mnemonic (only shown once):</strong> {{ wallet.mnemonic }}</li>
+        </ul>
+    {% endif %}
+
+    <!-- Google Auth -->
+    <h2>2. Authenticate with Google Drive</h2>
+    <form method="GET" action="/api/drive/auth/init/">
+        <button type="submit">Start Google OAuth2</button>
+    </form>
+
+    <!-- Set Backup Password & Upload -->
+    <h2>3. Set Backup Password & Upload Wallet</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="backup_wallet">
+        Password: <input type="password" name="password" required>
+        Password Hint: <input type="text" name="password_hint">
+        <button type="submit">Backup Wallet</button>
+    </form>
+    {% if backup_message %}
+        <h4>🔐 Backup Status:</h4>
+        <pre>{{ backup_message|safe }}</pre>
+    {% endif %}
+
+    <!-- Download & Restore -->
+    <h2>4. Restore Wallet</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="restore_wallet">
+        Password to Decrypt: <input type="password" name="restore_password" required>
+        <button type="submit">Download and Restore</button>
+    </form>
+    {% if restored_wallet %}
+        <h4>🔁 Restore Output:</h4>
+        <pre>{{ restored_wallet|safe }}</pre>
+    {% endif %}
+
+    <!-- Session Debug -->
+    <h2>5. Session Info</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="session_info">
+        <button type="submit">Show Session</button>
+    </form>
+    {% if session_data %}
+        <pre>{{ session_data|safe }}</pre>
+    {% endif %}
+
+    <!-- Logout -->
+    <h2>6. Logout (Clear Wallet Session)</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="logout">
+        <button type="submit">Logout</button>
+    </form>
+    {% if logout_msg %}
+        <p>{{ logout_msg }}</p>
+    {% endif %}
+
+    <!-- JavaScript to auto-save wallet info in localStorage -->
+    <script>
+        const publicKey = "{{ wallet.wallet.public_key|default:'' }}";
+        const mnemonic = "{{ wallet.mnemonic|default:'' }}";
+        if (publicKey && mnemonic) {
+            localStorage.setItem("X-Wallet-Key", publicKey);
+            localStorage.setItem("temp_password", mnemonic);
+            console.log("Wallet info saved to localStorage");
+        }
+    </script>
+</body>
+</html>
