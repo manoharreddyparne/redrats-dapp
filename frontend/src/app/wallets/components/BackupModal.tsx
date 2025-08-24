@@ -7,17 +7,27 @@ import api from '@/lib/api';
 interface BackupModalProps {
   isOpen: boolean;
   walletId: string;
+  walletName?: string;   // optional for wallet list page
+  publicKey?: string;    // optional for create wallet page
   onClose: () => void;
 }
 
-export default function BackupModal({ isOpen, walletId, onClose }: BackupModalProps) {
+export default function BackupModal({
+  isOpen,
+  walletId,
+  walletName,
+  onClose,
+}: BackupModalProps) {
   const [passwordHint, setPasswordHint] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/wallets/set-backup-password/', { wallet_id: walletId, password_hint: passwordHint });
+      await api.post('/wallets/set-backup-password/', {
+        wallet_id: walletId,
+        password_hint: passwordHint,
+      });
       alert('Backup password set successfully!');
       setPasswordHint('');
       setError('');
@@ -55,7 +65,9 @@ export default function BackupModal({ isOpen, walletId, onClose }: BackupModalPr
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded bg-white p-6 shadow-xl transition-all">
                 <Dialog.Title className="text-lg font-medium text-gray-900">
-                  Set Backup Password
+                  {walletName
+                    ? `Set Backup for "${walletName}"`
+                    : 'Set Backup Password'}
                 </Dialog.Title>
 
                 <form className="mt-4" onSubmit={handleSubmit}>
@@ -76,7 +88,10 @@ export default function BackupModal({ isOpen, walletId, onClose }: BackupModalPr
                     >
                       Cancel
                     </button>
-                    <button type="submit" className="px-4 py-2 bg-yellow-500 text-white rounded">
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-yellow-500 text-white rounded"
+                    >
                       Set
                     </button>
                   </div>

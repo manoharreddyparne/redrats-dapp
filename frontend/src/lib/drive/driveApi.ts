@@ -1,27 +1,50 @@
-import { authApi } from '../auth';
+// frontend/src/lib/drive/driveApi.ts
+import { request } from '../api';
 
-export const uploadWalletBackup = async (walletId: string, file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('wallet_id', walletId);
-
-  return authApi.post<{ success: boolean }>('/drive/upload/', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+// --- Get Google OAuth URL ---
+export const getGoogleOAuthUrl = async (walletId: string): Promise<{ url: string }> => {
+  const res = await request.get<{ url: string }>(
+    `/drive/oauth-url/?wallet_id=${walletId}`,
+    { withCredentials: true },
+    false // 🚀 disable JWT, use session cookie
+  );
+  return res.data;
 };
 
-export const downloadWalletBackup = async (walletId: string) => {
-  const token = localStorage.getItem('redrats_jwt');
-  const res = await fetch(`http://localhost:8000/api/drive/download/`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ wallet_id: walletId }),
-  });
+// --- Upload Wallet Backup (set backup password) ---
+export const uploadWalletBackup = async (
+  publicKey: string,
+  password: string,
+  passwordHint: string = ''
+) => {
+  const payload = {
+    password,        // 🔑 backend expects this field
+    password_hint: passwordHint,
+  };
 
-  if (!res.ok) throw new Error('Download failed');
-  const blob = await res.blob();
-  return blob;
+  return request.post(
+    '/wallet/wallets/set-backup-password/',
+    payload,
+    {
+      headers: { 
+        'X-Wallet-Key': publicKey,       // 👈 required by backend
+      },
+      withCredentials: true,
+    },
+    true // ✅ enable JWT (required for /wallet/* endpoints)
+  );
+};
+
+// --- Download Wallet Backup ---
+export const downloadWalletBackup = async (publicKey: string) => {
+  const res = await request.post(
+    '/drive/download/',
+    { wallet_id: publicKey },
+    {
+      headers: { 'X-Wallet-Key': publicKey },
+      withCredentials: true,
+    },
+    true // ✅ needs JWT too
+  );
+  return res.data;
 };

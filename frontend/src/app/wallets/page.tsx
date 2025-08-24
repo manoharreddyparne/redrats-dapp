@@ -20,50 +20,42 @@ export default function WalletsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- Modal States ---
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [restoreWalletId, setRestoreWalletId] = useState('');
-  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
-  const [backupWalletId, setBackupWalletId] = useState('');
-  const [isBackupOpen, setIsBackupOpen] = useState(false);
-  const [driveWalletId, setDriveWalletId] = useState('');
-  const [isDriveOpen, setIsDriveOpen] = useState(false);
+  const [modals, setModals] = useState({
+    import: false,
+    restore: { open: false, walletId: '' },
+    backup: { open: false, walletId: '' },
+    drive: { open: false, walletId: '' }
+  });
 
-  // Fetch wallets
+  const fetchWallets = async () => {
+    try {
+      const res = await authApi.get<Wallet[]>('/wallets/me/');
+      setWallets(res.data);
+    } catch {
+      setError('Failed to fetch wallets. Please login again.');
+      logout();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchWallets = async () => {
-      try {
-        const res = await authApi.get<Wallet[]>('/wallets/me/');
-        setWallets(res.data);
-      } catch {
-        setError('Failed to fetch wallets. Please login again.');
-        logout();
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchWallets();
   }, []);
 
-  // --- Modal Handlers ---
-  const openRestore = (walletId: string) => {
-    setRestoreWalletId(walletId);
-    setIsRestoreOpen(true);
+  const openModal = (type: 'restore' | 'backup' | 'drive', walletId: string) => {
+    setModals((prev) => ({
+      ...prev,
+      [type]: { open: true, walletId }
+    }));
   };
 
-  const openBackup = (walletId: string) => {
-    setBackupWalletId(walletId);
-    setIsBackupOpen(true);
+  const closeModal = (type: 'restore' | 'backup' | 'drive' | 'import') => {
+    if (type === 'import') setModals((prev) => ({ ...prev, import: false }));
+    else setModals((prev) => ({ ...prev, [type]: { open: false, walletId: '' } }));
   };
 
-  const openDriveModal = (walletId: string) => {
-    setDriveWalletId(walletId);
-    setIsDriveOpen(true);
-  };
-
-  const addWallet = (newWallet: Wallet) => {
-    setWallets((prev) => [...prev, newWallet]);
-  };
+  const addWallet = (newWallet: Wallet) => setWallets((prev) => [...prev, newWallet]);
 
   if (loading) return <p className="text-center mt-10">Loading wallets...</p>;
   if (error) return <p className="text-center mt-10 text-red-500">{error}</p>;
@@ -74,7 +66,7 @@ export default function WalletsPage() {
         Your Wallets
         <button
           className="bg-green-500 text-white px-4 py-2 rounded"
-          onClick={() => setIsImportOpen(true)}
+          onClick={() => setModals((prev) => ({ ...prev, import: true }))}
         >
           Import Wallet
         </button>
@@ -87,36 +79,32 @@ export default function WalletsPage() {
           <WalletCard
             key={wallet.id}
             wallet={wallet}
-            onRestore={openRestore}
-            onSetBackup={openBackup}
-            onDrive={openDriveModal}
+            onRestore={(id) => openModal('restore', id)}
+            onSetBackup={(id) => openModal('backup', id)}
+            onDrive={(id) => openModal('drive', id)}
           />
         ))}
       </div>
 
-      {/* --- Modals --- */}
       <ImportModal
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
+        isOpen={modals.import}
+        onClose={() => closeModal('import')}
         onSuccess={addWallet}
       />
-
       <RestoreModal
-        isOpen={isRestoreOpen}
-        walletId={restoreWalletId}
-        onClose={() => setIsRestoreOpen(false)}
+        isOpen={modals.restore.open}
+        walletId={modals.restore.walletId}
+        onClose={() => closeModal('restore')}
       />
-
       <BackupModal
-        isOpen={isBackupOpen}
-        walletId={backupWalletId}
-        onClose={() => setIsBackupOpen(false)}
+        isOpen={modals.backup.open}
+        walletId={modals.backup.walletId}
+        onClose={() => closeModal('backup')}
       />
-
       <DriveModal
-        isOpen={isDriveOpen}
-        walletId={driveWalletId}
-        onClose={() => setIsDriveOpen(false)}
+        isOpen={modals.drive.open}
+        walletId={modals.drive.walletId}
+        onClose={() => closeModal('drive')}
       />
     </div>
   );

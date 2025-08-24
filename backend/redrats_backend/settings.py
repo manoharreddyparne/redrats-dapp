@@ -1,36 +1,35 @@
+# redrats_backend/settings.py
 from pathlib import Path
 import os
 import dj_database_url
 from dotenv import load_dotenv
 from datetime import timedelta
+from corsheaders.defaults import default_headers
 
-# -------------------------
-# Environment & Paths
-# -------------------------
+# Load .env
 load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "replace-this-with-production-key")
+DEBUG = os.getenv("DEBUG", "True").lower() in ["true", "1"]
 
-# Safe DEBUG handling
-DEBUG = os.getenv("DEBUG", "True").lower() in ["true", "1"]  # Default to True for dev
-
-# -------------------------
-# Hosts & CORS
-# -------------------------
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# -------------------------
+# CORS / allowed headers
+# -------------------------
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
-).split(",")
+CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
+# allow the X-Wallet-Key header and usual defaults
+CORS_ALLOW_HEADERS = list(default_headers) + ["x-wallet-key"]
 
 # -------------------------
-# Sessions & CSRF
+# Sessions & CSRF (dev)
 # -------------------------
-SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = None   # allow cross-site cookies for local dev
+SESSION_COOKIE_SECURE = False    # HTTP local dev
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_SECURE = False
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 3600
 SESSION_SAVE_EVERY_REQUEST = True
@@ -55,9 +54,7 @@ AVALANCHE_CHAIN_ID = int(os.getenv("AVALANCHE_CHAIN_ID", 43113))
 # -------------------------
 # Database
 # -------------------------
-DATABASES = {
-    "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
-}
+DATABASES = {"default": dj_database_url.config(default=os.getenv("DATABASE_URL"))}
 
 # -------------------------
 # Installed apps
@@ -97,13 +94,10 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "redrats_backend.urls"
 
-# -------------------------
-# Templates
-# -------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # Add global templates dir
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -122,12 +116,15 @@ WSGI_APPLICATION = "redrats_backend.wsgi.application"
 # -------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "users.authentication.GoogleUserJWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",   # enable session cookies
+        "users.authentication.GoogleUserJWTAuthentication",       # keep JWT auth
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
 }
+
+
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
@@ -139,9 +136,6 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# -------------------------
-# Password validation
-# -------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -149,17 +143,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# -------------------------
-# Internationalization
-# -------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# -------------------------
-# Static & Media
-# -------------------------
 STATIC_URL = "/static/"
 MEDIA_URL = "/media/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
